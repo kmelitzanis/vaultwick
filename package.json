@@ -1,0 +1,48 @@
+{
+  "name": "vaultwick",
+  "version": "1.0.0",
+  "description": "Password-protected network drive mounter",
+  "author": {
+    "name": "Kostas Melitzanis",
+    "email": "kostasmel117@gmail.com"
+  },
+  "license": "GPL-3.0-or-later",
+  "main": "main.js",
+  "scripts": {
+    "setup": "node setup.js",
+    "start": "electron .",
+    "build": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "dist:all": "electron-builder --mac --win"
+  },
+  "devDependencies": {
+    "electron": "^42.4.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.vaultwick.app",
+    "productName": "Vaultwick",
+    "files": [
+      "**/*",
+      "!vault-config.json",
+      "!setup.js",
+      "!build/**",
+      "!dist/**",
+      "!.claude/**",
+      "!**/*.md"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.utilities",
+      "icon": "build/icon.icns"
+    }
+  },
+  "allowScripts": {
+    "electron-winstaller@5.4.0": true
+  }
+}

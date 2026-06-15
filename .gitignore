@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Secrets — encrypted vault credentials must never be committed
+vault-config.json
+
+# Editor / OS / tooling
+.DS_Store
+.claude/
+*.log

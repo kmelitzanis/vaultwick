@@ -1,0 +1,31 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#34e0b0"/>
+      <stop offset="1" stop-color="#16a875"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="22" stdDeviation="26" flood-color="#0a6b4a" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- App tile -->
+  <rect x="112" y="112" width="800" height="800" rx="180" fill="url(#bg)"/>
+  <rect x="112" y="112" width="800" height="800" rx="180" fill="url(#sheen)"/>
+
+  <!-- Padlock -->
+  <g filter="url(#shadow)">
+    <!-- shackle -->
+    <path d="M392 470 V392 a120 120 0 0 1 240 0 v78"
+          fill="none" stroke="#ffffff" stroke-width="64" stroke-linecap="round"/>
+    <!-- body -->
+    <rect x="332" y="452" width="360" height="300" rx="64" fill="#ffffff"/>
+    <!-- keyhole -->
+    <circle cx="512" cy="578" r="40" fill="#16a875"/>
+    <rect x="492" y="600" width="40" height="96" rx="20" fill="#16a875"/>
+  </g>
+</svg>
