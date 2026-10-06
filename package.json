@@ -70,7 +70,8 @@
       "entitlementsInherit": "build/entitlements.mac.plist",
       "extendInfo": {
         "NSAppleEventsUsageDescription": "Vaultwick uses AppleScript to mount your network share."
-      }
+      },
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "electronFuses": {
       "runAsNode": false,
