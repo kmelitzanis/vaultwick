@@ -9,7 +9,7 @@
   "license": "GPL-3.0-or-later",
   "main": "main.js",
   "scripts": {
-    "setup": "node setup.js",
+    "test": "node --test test/*.test.js",
     "start": "electron .",
     "build": "electron-builder",
     "dist:mac": "electron-builder --mac",
@@ -26,7 +26,6 @@
     "files": [
       "**/*",
       "!vault-config.json",
-      "!setup.js",
       "!build/**",
       "!dist/**",
       "!.claude/**",
