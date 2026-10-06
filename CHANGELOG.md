@@ -14,6 +14,8 @@ whose description is exactly that section.
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-06
+
 ### Added
 
 - macOS builds for Intel (`Vaultwick-X.Y.Z.amd64.dmg`) in addition to Apple
@@ -85,6 +87,7 @@ whose description is exactly that section.
 - Server password encrypted at rest with AES-256-GCM and scrypt.
 - First-run setup wizard, master password change and five colour themes.
 
-[Unreleased]: https://github.com/kmelitzanis/vaultwick/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/kmelitzanis/vaultwick/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/kmelitzanis/vaultwick/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/kmelitzanis/vaultwick/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/kmelitzanis/vaultwick/releases/tag/v1.0.0
