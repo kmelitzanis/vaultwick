@@ -16,336 +16,548 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+'use strict';
+
+const {
+  app,
+  BrowserWindow,
+  Menu,
+  Tray,
+  ipcMain,
+  nativeImage,
+  powerMonitor,
+  safeStorage,
+  session,
+  shell,
+  systemPreferences,
+} = require('electron');
 const path = require('path');
-const { exec, execFile } = require('child_process');
-const crypto = require('crypto');
-const os = require('os');
 const fs = require('fs');
+const { pathToFileURL } = require('url');
 
-let mainWindow;
-let mounted = false;
-let CONFIG = null;
+const { encryptSecret, decryptSecret, needsKdfUpgrade } = require('./lib/crypto');
+const { ConfigStore, newId, isComplete } = require('./lib/config');
+const V = require('./lib/validate');
+const mounter = require('./lib/mount');
 
-const DEFAULT_THEME = 'emerald';
+const WINDOW_WIDTH = 400;
+const INDEX_FILE = path.join(__dirname, 'index.html');
+const INDEX_URL = pathToFileURL(INDEX_FILE).href;
+const WATCH_INTERVAL_MS = 15000;
 
-// macOS: mount under /Volumes (via the native NetFS "mount volume" call) so the
-// share shows up as a real drive on the Desktop and in Finder's sidebar.
-function macMountPoint() {
-  const share = (CONFIG && CONFIG.share) || 'vault';
-  return path.join('/Volumes', share);
+let mainWindow = null;
+let tray = null;
+let quitting = false;
+let mounted = null; // { vaultId, path }
+let watchTimer = null;
+const failures = new Map(); // vaultId -> { count, until }
+
+// ---------------------------------------------------------------- config
+
+// In development an existing ./vault-config.json is still honoured; otherwise
+// the config lives in the per-user data directory.
+function configPath() {
+  const local = path.join(__dirname, 'vault-config.json');
+  if (!app.isPackaged && fs.existsSync(local)) return local;
+  return path.join(app.getPath('userData'), 'vault-config.json');
 }
 
-// ---------------------------------------------------------------- config I/O
+let store;
 
-function configCandidates() {
-  return [
-    path.join(__dirname, 'vault-config.json'),
-    path.join(app.getPath('userData'), 'vault-config.json'),
-  ];
-}
-
-function findConfig() {
-  for (const c of configCandidates()) {
-    if (fs.existsSync(c)) return c;
-  }
-  return null;
-}
-
-// Where to write: reuse the existing file, else a writable location.
-function configWritePath() {
-  const existing = findConfig();
-  if (existing) return existing;
-  return app.isPackaged
-    ? path.join(app.getPath('userData'), 'vault-config.json')
-    : path.join(__dirname, 'vault-config.json');
-}
-
-function loadConfig() {
-  const file = findConfig();
-  if (!file) return null;
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch (e) {
-    return null;
-  }
-}
-
-function saveConfig(cfg) {
-  fs.writeFileSync(configWritePath(), JSON.stringify(cfg, null, 2));
-}
-
-function isConfigured(cfg) {
-  return !!(cfg && cfg.host && cfg.share && cfg.username &&
-            cfg.salt && cfg.iv && cfg.tag && cfg.data);
-}
-
-// ---------------------------------------------------------------- crypto
-
-// Encrypt a secret (the server password) with a key derived from the master
-// password (AES-256-GCM). Returns the hex fields stored in the config.
-function encryptSecret(masterPassword, secret) {
-  const salt = crypto.randomBytes(16);
-  const key = crypto.scryptSync(masterPassword, salt, 32);
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-  const enc = Buffer.concat([
-    cipher.update(Buffer.from(secret, 'utf8')),
-    cipher.final(),
-  ]);
-  const tag = cipher.getAuthTag();
+function publicVault(v) {
   return {
-    salt: salt.toString('hex'),
-    iv: iv.toString('hex'),
-    tag: tag.toString('hex'),
-    data: enc.toString('hex'),
+    id: v.id,
+    name: v.name,
+    host: v.host,
+    share: v.share,
+    username: v.username,
+    winDrive: v.winDrive,
+    touchId: !!v.quickUnlock,
   };
 }
 
-// Decrypt the stored server password. Throws (GCM auth failure) on wrong master.
-function decryptSecret(masterPassword, cfg) {
-  const salt = Buffer.from(cfg.salt, 'hex');
-  const key = crypto.scryptSync(masterPassword, salt, 32);
-  const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(cfg.iv, 'hex'));
-  decipher.setAuthTag(Buffer.from(cfg.tag, 'hex'));
-  const out = Buffer.concat([
-    decipher.update(Buffer.from(cfg.data, 'hex')),
-    decipher.final(),
-  ]);
-  return out.toString('utf8');
+function touchIdAvailable() {
+  try {
+    return (
+      process.platform === 'darwin' &&
+      systemPreferences.canPromptTouchID() &&
+      safeStorage.isEncryptionAvailable()
+    );
+  } catch {
+    return false;
+  }
+}
+
+function fail(code, extra = {}) {
+  return { success: false, code, ...extra };
 }
 
 // ---------------------------------------------------------------- mounting
 
-function mountDrive(username, password) {
-  return new Promise((resolve, reject) => {
-    const host = CONFIG.host;
-    const share = CONFIG.share;
-
-    if (process.platform === 'win32') {
-      const drive = CONFIG.winDrive || 'Z:';
-      const uncPath = `\\\\${host}\\${share}`;
-      execFile('net', ['use', drive, '/delete', '/y'], () => {
-        const args = ['use', drive, uncPath, password, `/user:${username}`];
-        execFile('net', args, (err, stdout, stderr) => {
-          if (err) reject(stderr || err.message);
-          else resolve(drive);
-        });
-      });
-    } else if (process.platform === 'darwin') {
-      const u = encodeURIComponent(username);
-      const p = encodeURIComponent(password);
-      const smbUrl = `smb://${u}:${p}@${host}/${share}`;
-      const mountPoint = macMountPoint();
-
-      if (fs.existsSync(mountPoint)) {
-        resolve(mountPoint);
-        return;
-      }
-
-      const asUrl = smbUrl.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-      execFile('osascript', ['-e', `mount volume "${asUrl}"`], (err, stdout, stderr) => {
-        if (err) reject(stderr || err.message);
-        else resolve(mountPoint);
-      });
-    } else {
-      reject('Unsupported platform');
-    }
-  });
+async function doMount(vault, serverPassword) {
+  if (mounted && mounted.vaultId !== vault.id) await doUnmount();
+  const mountPath = await mounter.mount(vault, serverPassword);
+  mounted = { vaultId: vault.id, path: mountPath };
+  startWatch();
+  refreshTray();
+  return mountPath;
 }
 
-function unmountDrive() {
-  return new Promise((resolve) => {
-    if (process.platform === 'win32') {
-      const drive = (CONFIG && CONFIG.winDrive) || 'Z:';
-      execFile('net', ['use', drive, '/delete', '/y'], () => resolve());
-    } else if (process.platform === 'darwin') {
-      execFile('diskutil', ['unmount', macMountPoint()], () => resolve());
-    } else {
-      resolve();
-    }
-  });
+async function doUnmount() {
+  if (!mounted) return;
+  const vault = store.vault(mounted.vaultId);
+  mounted = null;
+  stopWatch();
+  refreshTray();
+  if (vault) await mounter.unmount(vault);
 }
 
-// ---------------------------------------------------------------- window
+async function lock(reason) {
+  if (!mounted) return;
+  await doUnmount();
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('vault-locked', reason);
+}
+
+// Lightweight check used by the watcher; avoids spawning PowerShell every tick.
+async function stillMounted() {
+  if (!mounted) return false;
+  if (process.platform === 'win32') return fs.existsSync(mounted.path);
+  const vault = store.vault(mounted.vaultId);
+  return !!(vault && (await mounter.mountedPath(vault)));
+}
+
+// Auto-lock on idle, and notice when the share is ejected from outside the app.
+function startWatch() {
+  stopWatch();
+  watchTimer = setInterval(async () => {
+    if (!mounted) return stopWatch();
+    const minutes = store.settings.autoLockMinutes;
+    if (minutes > 0 && powerMonitor.getSystemIdleTime() >= minutes * 60) {
+      await lock('idle');
+      return;
+    }
+    if (!(await stillMounted())) {
+      mounted = null;
+      stopWatch();
+      refreshTray();
+      if (mainWindow) mainWindow.webContents.send('vault-locked', 'external');
+    }
+  }, WATCH_INTERVAL_MS);
+}
+
+function stopWatch() {
+  if (watchTimer) clearInterval(watchTimer);
+  watchTimer = null;
+}
+
+// ---------------------------------------------------------------- unlock throttling
+
+function throttled(vaultId) {
+  const f = failures.get(vaultId);
+  if (!f || Date.now() >= f.until) return 0;
+  return Math.ceil((f.until - Date.now()) / 1000);
+}
+
+// After 3 wrong attempts, wait 2s, 4s, 8s ... up to 60s between tries.
+function recordFailure(vaultId) {
+  const f = failures.get(vaultId) || { count: 0, until: 0 };
+  f.count += 1;
+  f.until = f.count >= 3 ? Date.now() + Math.min(60, 2 ** (f.count - 2)) * 1000 : 0;
+  failures.set(vaultId, f);
+}
+
+// ---------------------------------------------------------------- window & tray
+
+function showWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return createWindow();
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 400,
+    width: WINDOW_WIDTH,
     height: 600,
     resizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    show: false,
     backgroundColor: '#27c592',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    icon: path.join(__dirname, 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true,
+      spellcheck: false,
+      devTools: !app.isPackaged,
     },
   });
   mainWindow.setMenuBarVisibility(false);
-  mainWindow.loadFile('index.html');
+  mainWindow.once('ready-to-show', () => {
+    if (!process.argv.includes('--hidden')) mainWindow.show();
+  });
+  mainWindow.on('close', (e) => {
+    if (!quitting && tray && store.settings.closeToTray) {
+      e.preventDefault();
+      mainWindow.hide();
+    }
+  });
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+  mainWindow.loadFile(INDEX_FILE);
 }
 
-app.whenReady().then(() => {
-  CONFIG = loadConfig();
-  createWindow();
-});
+function trayImage() {
+  const img = nativeImage.createFromPath(path.join(__dirname, 'assets', 'icon.png'));
+  return img.isEmpty() ? img : img.resize({ width: 18, height: 18 });
+}
 
-app.on('window-all-closed', async () => {
-  if (mounted) await unmountDrive();
-  app.quit();
-});
+function refreshTray() {
+  if (!tray) return;
+  const vault = mounted && store.vault(mounted.vaultId);
+  tray.setToolTip(vault ? `Vaultwick — ${vault.name} unlocked` : 'Vaultwick — locked');
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: vault ? `● ${vault.name}` : 'Locked', enabled: false },
+      { type: 'separator' },
+      { label: 'Show Vaultwick', click: showWindow },
+      { label: 'Open Folder', enabled: !!vault, click: () => mounted && shell.openPath(mounted.path) },
+      { label: 'Lock Vault', enabled: !!vault, click: () => lock('tray') },
+      { type: 'separator' },
+      { label: 'Quit', click: () => app.quit() },
+    ]),
+  );
+}
 
-app.on('before-quit', async (e) => {
-  if (mounted) {
-    e.preventDefault();
-    await unmountDrive();
-    mounted = false;
-    app.quit();
+function createTray() {
+  try {
+    tray = new Tray(trayImage());
+    tray.on('click', showWindow);
+    refreshTray();
+  } catch {
+    tray = null; // e.g. a Linux desktop without a status area
   }
+}
+
+function applyLoginItem() {
+  if (process.platform !== 'darwin' && process.platform !== 'win32') return;
+  app.setLoginItemSettings({ openAtLogin: !!store.settings.launchAtLogin, args: ['--hidden'] });
+}
+
+// ---------------------------------------------------------------- hardening
+
+app.on('web-contents-created', (_e, contents) => {
+  contents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  contents.on('will-navigate', (e, url) => {
+    if (url !== INDEX_URL) e.preventDefault();
+  });
+  contents.on('will-attach-webview', (e) => e.preventDefault());
 });
+
+// Every IPC call must come from our own page, never from anything else.
+function handle(channel, fn) {
+  ipcMain.handle(channel, (event, ...args) => {
+    const frame = event.senderFrame;
+    if (!frame || frame.url !== INDEX_URL || event.sender !== (mainWindow && mainWindow.webContents)) {
+      throw new Error('Rejected IPC from untrusted sender');
+    }
+    return fn(...args);
+  });
+}
+
+// ---------------------------------------------------------------- lifecycle
+
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', showWindow);
+
+  app.whenReady().then(() => {
+    session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
+    store = new ConfigStore(configPath());
+    store.load();
+    createWindow();
+    createTray();
+    applyLoginItem();
+
+    const lockOnSleep = () => store.settings.lockOnSleep && lock('sleep');
+    powerMonitor.on('suspend', lockOnSleep);
+    powerMonitor.on('lock-screen', lockOnSleep);
+
+    if (app.isPackaged) {
+      try {
+        const { autoUpdater } = require('electron-updater');
+        autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+      } catch {
+        /* updater unavailable */
+      }
+    }
+  });
+
+  app.on('activate', showWindow);
+
+  app.on('window-all-closed', () => {
+    if (!tray || !store.settings.closeToTray) app.quit();
+  });
+
+  app.on('before-quit', async (e) => {
+    quitting = true;
+    if (mounted) {
+      e.preventDefault();
+      await doUnmount();
+      app.quit();
+    }
+  });
+}
 
 // ---------------------------------------------------------------- IPC
 
-// Tells the renderer whether to show the setup wizard, and the saved theme.
-ipcMain.handle('get-status', async () => {
-  return {
-    configured: isConfigured(CONFIG),
-    theme: (CONFIG && CONFIG.theme) || DEFAULT_THEME,
+handle('get-status', async () => ({
+  configured: store.isConfigured(),
+  settings: store.settings,
+  locale: app.getLocale(),
+  vaults: store.vaults.filter(isComplete).map(publicVault),
+  activeVaultId: (store.activeVault() || {}).id || null,
+  mounted,
+  platform: process.platform,
+  touchIdAvailable: touchIdAvailable(),
+  loginItemSupported: process.platform === 'darwin' || process.platform === 'win32',
+  minMasterLength: V.MIN_MASTER_LENGTH,
+}));
+
+function readVaultForm(data) {
+  const d = data && typeof data === 'object' ? data : {};
+  const form = {
+    name: String(d.name || '').trim() || String(d.share || '').trim(),
+    host: String(d.host || '').trim(),
+    share: String(d.share || '').trim() || 'vault',
+    username: String(d.username || '').trim(),
+    winDrive: V.normalizeDrive(d.winDrive || 'Z:'),
+    serverPassword: typeof d.serverPassword === 'string' ? d.serverPassword : '',
+    masterPassword: typeof d.masterPassword === 'string' ? d.masterPassword : '',
   };
-});
+  let error = null;
+  if (!V.validHost(form.host)) error = 'invalidHost';
+  else if (!V.validShare(form.share)) error = 'invalidShare';
+  else if (!V.validUsername(form.username)) error = 'invalidUsername';
+  else if (!form.winDrive) error = 'invalidDrive';
+  else if (!V.validName(form.name)) error = 'invalidName';
+  else if (!V.validSecret(form.serverPassword)) error = 'serverPwRequired';
+  return { form, error };
+}
 
-// Non-secret config, for pre-filling the wizard when re-running setup.
-ipcMain.handle('get-config', async () => {
-  if (!CONFIG) return null;
-  return {
-    host: CONFIG.host || '',
-    share: CONFIG.share || '',
-    username: CONFIG.username || '',
-    winDrive: CONFIG.winDrive || 'Z:',
-    theme: CONFIG.theme || DEFAULT_THEME,
-  };
-});
+// Create a new vault, or replace the connection details of an existing one.
+handle('save-vault', async (data) => {
+  const { form, error } = readVaultForm(data);
+  if (error) return fail(error);
+  if (!V.validMaster(form.masterPassword)) return fail('masterTooShort', { min: V.MIN_MASTER_LENGTH });
 
-// First-run setup (and re-run from settings). Encrypts the server password
-// with the master password and writes the config file.
-ipcMain.handle('save-setup', async (event, data) => {
-  const host = (data.host || '').trim();
-  const share = (data.share || '').trim() || 'vault';
-  const username = (data.username || '').trim();
-  const winDrive = (data.winDrive || '').trim() || 'Z:';
-  const serverPassword = data.serverPassword || '';
-  const masterPassword = data.masterPassword || '';
-
-  if (!host) return { success: false, message: 'Server address is required.' };
-  if (!username) return { success: false, message: 'Username is required.' };
-  if (!serverPassword) return { success: false, message: 'Server password is required.' };
-  if (!masterPassword) return { success: false, message: 'Master password is required.' };
+  const editId = data && typeof data.id === 'string' ? data.id : null;
+  const existing = editId ? store.vault(editId) : null;
+  if (editId && !existing) return fail('notConfigured');
 
   try {
-    if (mounted) {
-      await unmountDrive();
-      mounted = false;
-    }
-    const enc = encryptSecret(masterPassword, serverPassword);
-    const cfg = {
-      host,
-      share,
-      username,
-      winDrive,
-      theme: data.theme || (CONFIG && CONFIG.theme) || DEFAULT_THEME,
+    if (existing && mounted && mounted.vaultId === existing.id) await doUnmount();
+    const enc = await encryptSecret(form.masterPassword, form.serverPassword);
+    const vault = {
+      id: existing ? existing.id : newId(),
+      name: form.name,
+      host: form.host,
+      share: form.share,
+      username: form.username,
+      winDrive: form.winDrive,
       ...enc,
     };
-    saveConfig(cfg);
-    CONFIG = cfg;
-    return { success: true };
+    if (existing) store.vaults.splice(store.vaults.indexOf(existing), 1, vault);
+    else store.vaults.push(vault);
+    store.data.activeVaultId = vault.id;
+    store.save();
+    return { success: true, id: vault.id };
   } catch (err) {
-    return { success: false, message: 'Could not save setup:\n' + err.message };
+    return fail('saveFailed', { detail: err.message });
   }
 });
 
-// Re-encrypt the stored server password under a new master password.
-ipcMain.handle('change-master-password', async (event, oldPw, newPw) => {
-  if (!isConfigured(CONFIG)) {
-    return { success: false, message: 'No vault is configured yet.' };
+handle('delete-vault', async (id) => {
+  const vault = store.vault(id);
+  if (!vault) return fail('notConfigured');
+  if (mounted && mounted.vaultId === id) await doUnmount();
+  store.vaults.splice(store.vaults.indexOf(vault), 1);
+  if (store.data.activeVaultId === id) store.data.activeVaultId = store.vaults[0] ? store.vaults[0].id : null;
+  store.save();
+  return { success: true };
+});
+
+handle('set-active-vault', async (id) => {
+  if (!store.vault(id)) return fail('notConfigured');
+  store.data.activeVaultId = id;
+  store.save();
+  return { success: true };
+});
+
+// Mount a reachable share with a TCP probe first, so a typo in the address
+// fails fast with a clear message instead of a long OS timeout.
+async function mountChecked(vault, serverPassword) {
+  if (!mounter.supported) return fail('unsupported');
+  if (!(await mounter.probe(vault.host))) return fail('unreachable', { host: vault.host });
+  try {
+    const mountPath = await doMount(vault, serverPassword);
+    return { success: true, mountPath, vaultId: vault.id };
+  } catch (err) {
+    return fail('mountFailed', { detail: String(err.message || err) });
   }
-  if (!newPw) {
-    return { success: false, message: 'New master password is required.' };
-  }
+}
+
+handle('unlock', async (id, masterPassword) => {
+  const vault = store.vault(id);
+  if (!isComplete(vault)) return fail('notConfigured');
+  const wait = throttled(id);
+  if (wait) return fail('tooManyAttempts', { seconds: wait });
 
   let serverPassword;
   try {
-    serverPassword = decryptSecret(oldPw, CONFIG);
-  } catch (e) {
-    return { success: false, message: 'Current master password is incorrect.' };
+    serverPassword = await decryptSecret(String(masterPassword || ''), vault);
+  } catch {
+    recordFailure(id);
+    return fail('wrongPassword');
+  }
+  failures.delete(id);
+
+  // Transparently re-encrypt configs written with weaker KDF parameters.
+  if (needsKdfUpgrade(vault)) {
+    try {
+      Object.assign(vault, await encryptSecret(masterPassword, serverPassword));
+      store.save();
+    } catch {
+      /* keep the old record; it still works */
+    }
   }
 
+  store.data.activeVaultId = id;
+  store.save();
+  return mountChecked(vault, serverPassword);
+});
+
+handle('unlock-touch-id', async (id) => {
+  const vault = store.vault(id);
+  if (!vault || !vault.quickUnlock || !touchIdAvailable()) return fail('touchIdUnavailable');
   try {
-    const enc = encryptSecret(newPw, serverPassword);
-    const cfg = { ...CONFIG, ...enc };
-    saveConfig(cfg);
-    CONFIG = cfg;
+    await systemPreferences.promptTouchID(`unlock “${vault.name}”`);
+  } catch {
+    return fail('touchIdFailed');
+  }
+  let serverPassword;
+  try {
+    serverPassword = safeStorage.decryptString(Buffer.from(vault.quickUnlock, 'base64'));
+  } catch {
+    return fail('touchIdFailed');
+  }
+  store.data.activeVaultId = id;
+  store.save();
+  return mountChecked(vault, serverPassword);
+});
+
+handle('set-touch-id', async (id, enable, masterPassword) => {
+  const vault = store.vault(id);
+  if (!vault) return fail('notConfigured');
+  if (!enable) {
+    delete vault.quickUnlock;
+    store.save();
+    return { success: true };
+  }
+  if (!touchIdAvailable()) return fail('touchIdUnavailable');
+  let serverPassword;
+  try {
+    serverPassword = await decryptSecret(String(masterPassword || ''), vault);
+  } catch {
+    return fail('wrongPassword');
+  }
+  vault.quickUnlock = safeStorage.encryptString(serverPassword).toString('base64');
+  store.save();
+  return { success: true };
+});
+
+handle('change-master-password', async (id, oldPw, newPw) => {
+  const vault = store.vault(id);
+  if (!isComplete(vault)) return fail('notConfigured');
+  if (!V.validMaster(newPw)) return fail('masterTooShort', { min: V.MIN_MASTER_LENGTH });
+  const wait = throttled(id);
+  if (wait) return fail('tooManyAttempts', { seconds: wait });
+
+  let serverPassword;
+  try {
+    serverPassword = await decryptSecret(String(oldPw || ''), vault);
+  } catch {
+    recordFailure(id);
+    return fail('currentPwWrong');
+  }
+  try {
+    Object.assign(vault, await encryptSecret(newPw, serverPassword));
+    store.save();
     return { success: true };
   } catch (err) {
-    return { success: false, message: 'Could not update password:\n' + err.message };
-  } finally {
-    serverPassword = null;
+    return fail('saveFailed', { detail: err.message });
   }
+});
+
+// Verifies the address and credentials from the wizard by mounting the share
+// and, if it was not mounted before, unmounting it again.
+handle('test-connection', async (data) => {
+  const { form, error } = readVaultForm({ ...data, name: 'test' });
+  if (error) return fail(error);
+  if (!mounter.supported) return fail('unsupported');
+  if (!(await mounter.probe(form.host))) return fail('unreachable', { host: form.host });
+  const probeVault = { ...form, id: 'test' };
+  const wasMounted = await mounter.mountedPath(probeVault);
+  if (wasMounted) return { success: true };
+  try {
+    await mounter.mount(probeVault, form.serverPassword);
+    await mounter.unmount(probeVault);
+    return { success: true };
+  } catch (err) {
+    return fail('mountFailed', { detail: String(err.message || err) });
+  }
+});
+
+handle('update-settings', async (patch) => {
+  const p = patch && typeof patch === 'object' ? patch : {};
+  const s = store.settings;
+  if ('theme' in p && V.validTheme(p.theme)) s.theme = p.theme;
+  if ('language' in p && (p.language === null || V.validLanguage(p.language))) s.language = p.language;
+  if ('autoLockMinutes' in p && [0, 5, 15, 30, 60].includes(p.autoLockMinutes)) s.autoLockMinutes = p.autoLockMinutes;
+  if ('lockOnSleep' in p) s.lockOnSleep = !!p.lockOnSleep;
+  if ('closeToTray' in p) s.closeToTray = !!p.closeToTray;
+  if ('launchAtLogin' in p) {
+    s.launchAtLogin = !!p.launchAtLogin;
+    applyLoginItem();
+  }
+  try {
+    store.save();
+  } catch {
+    /* settings still apply for this session */
+  }
+  return s;
 });
 
 // Resize the window to snugly fit the current view (no dead space).
-ipcMain.handle('resize-window', async (event, height) => {
+handle('resize-window', async (height) => {
   if (!mainWindow) return;
-  const h = Math.max(360, Math.min(820, Math.round(height)));
-  mainWindow.setContentSize(400, h, process.platform === 'darwin');
+  const h = Math.max(360, Math.min(820, Math.round(Number(height) || 600)));
+  mainWindow.setContentSize(WINDOW_WIDTH, h, process.platform === 'darwin');
 });
 
-ipcMain.handle('set-theme', async (event, themeId) => {
-  if (CONFIG) {
-    CONFIG.theme = themeId;
-    try { saveConfig(CONFIG); } catch (e) { /* ignore */ }
-  }
-  return true;
+handle('open-folder', async () => {
+  if (!mounted) return fail('notMounted');
+  const err = await shell.openPath(mounted.path);
+  return err ? fail('openFailed', { detail: err }) : { success: true };
 });
 
-ipcMain.handle('check-password', async (event, masterPassword) => {
-  if (!isConfigured(CONFIG)) {
-    return { success: false, message: 'No vault configured. Please run setup.' };
-  }
-
-  let serverPassword;
-  try {
-    serverPassword = decryptSecret(masterPassword, CONFIG);
-  } catch (e) {
-    return { success: false, message: 'Incorrect password.' };
-  }
-
-  try {
-    const mountPath = await mountDrive(CONFIG.username, serverPassword);
-    mounted = true;
-    return { success: true, mountPath };
-  } catch (err) {
-    return {
-      success: false,
-      message: `Password OK, but failed to mount drive:\n${err}`,
-    };
-  } finally {
-    serverPassword = null;
-  }
-});
-
-ipcMain.handle('open-folder', async () => {
-  const drive = (CONFIG && CONFIG.winDrive) || 'Z:';
-  if (process.platform === 'win32') {
-    exec(`start "" "${drive}\\"`);
-  } else {
-    execFile('open', [macMountPoint()]);
-  }
-});
-
-ipcMain.handle('lock-vault', async () => {
-  if (mounted) {
-    await unmountDrive();
-    mounted = false;
-  }
+handle('lock-vault', async () => {
+  await doUnmount();
   return true;
 });
