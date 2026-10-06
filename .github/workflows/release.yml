@@ -1,27 +1,100 @@
 name: Release
 
+# Releases whenever the version in package.json changes on main (or on demand).
+# 1. Reads the version and its CHANGELOG.md section (fails if there is none).
+# 2. Creates the vX.Y.Z tag and a draft GitHub Release with those notes.
+# 3. Builds and uploads installers for macOS, Windows and Linux.
+# 4. Publishes the release once every build has succeeded.
+
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+    paths: [package.json, CHANGELOG.md]
+  workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
-  release:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+      release: ${{ steps.meta.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: meta
+        name: Read version and check for an existing release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          DRAFT=$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null || echo none)
+          if [ "$DRAFT" = "false" ]; then
+            echo "Release $TAG is already published — nothing to do."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            # "none": first run. "true": an earlier run failed mid-way; retry the builds.
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "existing=$DRAFT" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract release notes from CHANGELOG.md
+        if: steps.meta.outputs.release == 'true'
+        run: node scripts/changelog.js "${{ steps.meta.outputs.version }}" > release-notes.md
+
+      - name: Create tag and draft release
+        if: steps.meta.outputs.release == 'true' && steps.meta.outputs.existing == 'none'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! git rev-parse -q --verify "refs/tags/${{ steps.meta.outputs.tag }}" >/dev/null; then
+            git tag "${{ steps.meta.outputs.tag }}" "$GITHUB_SHA"
+            git push origin "${{ steps.meta.outputs.tag }}"
+          fi
+          gh release create "${{ steps.meta.outputs.tag }}" \
+            --draft \
+            --title "Vaultwick ${{ steps.meta.outputs.version }}" \
+            --verify-tag \
+            --notes-file release-notes.md
+
+      - name: Refresh notes of an existing draft
+        if: steps.meta.outputs.release == 'true' && steps.meta.outputs.existing == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${{ steps.meta.outputs.tag }}" --notes-file release-notes.md
+
+  build:
+    needs: prepare
+    if: needs.prepare.outputs.release == 'true'
     strategy:
+      fail-fast: true
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm test
-      # Signing/notarization run only when the matching secrets are configured.
+      # Uploads installers into the draft release created above. Signing and
+      # notarization run only when the matching secrets are configured.
       - run: npx electron-builder --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -30,3 +103,12 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${{ needs.prepare.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --draft=false --latest
