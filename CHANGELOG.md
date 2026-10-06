@@ -14,6 +14,11 @@ whose description is exactly that section.
 
 ## [Unreleased]
 
+### Added
+
+- macOS builds for Intel (`Vaultwick-X.Y.Z.amd64.dmg`) in addition to Apple
+  Silicon (`Vaultwick-X.Y.Z-arm64.dmg`).
+
 ## [1.1.0] - 2026-10-06
 
 ### Added
