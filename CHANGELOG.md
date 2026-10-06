@@ -14,6 +14,10 @@ whose description is exactly that section.
 
 ## [Unreleased]
 
+### Added
+
+- macOS builds for Intel (x64) in addition to Apple Silicon (arm64).
+
 ## [1.1.0] - 2026-10-06
 
 ### Added
