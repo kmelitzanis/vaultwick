@@ -22,6 +22,8 @@
       <p class="subtitle">Let's connect your secure drive.<br>This runs only once.</p>
 
       <div class="wizard-fields">
+        <div class="card">
+        <div class="card-title">Connection</div>
         <label class="label">Server address / IP</label>
         <div class="field"><input id="wHost" placeholder="192.168.1.10" autocomplete="off" spellcheck="false"></div>
 
@@ -41,12 +43,17 @@
 
         <label class="label">Server password</label>
         <div class="field"><input type="password" id="wServerPw" placeholder="Password for the server" autocomplete="off"></div>
+        </div>
 
-        <label class="label">Master password (unlocks this app)</label>
+        <div class="card">
+        <div class="card-title">Master password</div>
+
+        <label class="label">Master password <span class="hint">unlocks this app</span></label>
         <div class="field"><input type="password" id="wMasterPw" placeholder="Choose a master password" autocomplete="off"></div>
 
         <label class="label">Confirm master password</label>
         <div class="field"><input type="password" id="wMasterPw2" placeholder="Repeat master password" autocomplete="off"></div>
+        </div>
       </div>
 
       <div class="msg error" id="wizMsg"></div>
@@ -92,7 +99,7 @@
       <h1>Vault Unlocked</h1>
       <p class="subtitle">Your drive is mounted and ready.</p>
 
-      <div class="mount"><span class="dot"></span><span id="mountInfo"></span></div>
+      <div class="mount"><span class="dot"></span><span class="mount-label">Mounted at</span><span id="mountInfo"></span></div>
 
       <div class="stack">
         <button class="primary" id="openBtn">Open Folder</button>
@@ -111,12 +118,12 @@
       <h1>Settings</h1>
       <p class="subtitle">Personalize and manage your vault.</p>
 
-      <div class="section">
+      <div class="section card">
         <h3>Appearance</h3>
         <div class="swatches" id="swatches"></div>
       </div>
 
-      <div class="section">
+      <div class="section card">
         <h3>Security</h3>
         <div class="setting-row">
           <span class="desc">Master password</span>
@@ -131,7 +138,7 @@
         </div>
       </div>
 
-      <div class="section">
+      <div class="section card">
         <h3>Connection</h3>
         <div class="setting-row">
           <span class="desc">Re-run the setup wizard</span>
