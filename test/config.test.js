@@ -8,7 +8,17 @@ const path = require('path');
 const { ConfigStore, migrate } = require('../lib/config');
 
 test('migrates a v1 flat config', () => {
-  const cfg = migrate({ host: 'nas', share: 'vault', username: 'u', winDrive: 'Y:', theme: 'ocean', salt: 'a', iv: 'b', tag: 'c', data: 'd' });
+  const cfg = migrate({
+    host: 'nas',
+    share: 'vault',
+    username: 'u',
+    winDrive: 'Y:',
+    theme: 'ocean',
+    salt: 'a',
+    iv: 'b',
+    tag: 'c',
+    data: 'd',
+  });
   assert.strictEqual(cfg.version, 2);
   assert.strictEqual(cfg.settings.theme, 'ocean');
   assert.strictEqual(cfg.vaults.length, 1);

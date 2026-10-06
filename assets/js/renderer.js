@@ -25,7 +25,11 @@
   function resolveLang() {
     const chosen = status.settings.language;
     if (chosen && window.I18N[chosen]) return chosen;
-    return String(status.locale || 'en').toLowerCase().startsWith('el') ? 'el' : 'en';
+    return String(status.locale || 'en')
+      .toLowerCase()
+      .startsWith('el')
+      ? 'el'
+      : 'en';
   }
 
   function applyI18n() {
@@ -34,7 +38,9 @@
     document.querySelectorAll('[data-i18n]').forEach((el) => (el.textContent = t(el.dataset.i18n)));
     document.querySelectorAll('[data-i18n-ph]').forEach((el) => (el.placeholder = t(el.dataset.i18nPh)));
     document.querySelectorAll('[data-i18n-title]').forEach((el) => (el.title = t(el.dataset.i18nTitle)));
-    document.querySelectorAll('[data-i18n-aria]').forEach((el) => el.setAttribute('aria-label', t(el.dataset.i18nAria)));
+    document
+      .querySelectorAll('[data-i18n-aria]')
+      .forEach((el) => el.setAttribute('aria-label', t(el.dataset.i18nAria)));
   }
 
   // ---------- Themes ----------
@@ -79,7 +85,8 @@
   }
 
   // ---------- Password show/hide toggles ----------
-  const EYE_OPEN = '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle>';
+  const EYE_OPEN =
+    '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle>';
   const EYE_OFF =
     '<path d="M9.9 4.2A10.9 10.9 0 0 1 12 4c6.5 0 10 7 10 7a18.5 18.5 0 0 1-3 3.6M6 6.3A18.6 18.6 0 0 0 2 11s3.5 7 10 7a10.8 10.8 0 0 0 4.3-.9"></path><path d="m1 1 22 22"></path>';
 
@@ -461,7 +468,11 @@
     resetMeter($('wMeter'), $('wMeterLabel'));
     setMsg($('wizMsg'), '');
     setMsg($('testMsg'), '');
-    const titles = { first: ['wizWelcome', 'wizSubtitle'], edit: ['wizEdit', 'wizEditSubtitle'], add: ['wizAdd', 'wizAddSubtitle'] };
+    const titles = {
+      first: ['wizWelcome', 'wizSubtitle'],
+      edit: ['wizEdit', 'wizEditSubtitle'],
+      add: ['wizAdd', 'wizAddSubtitle'],
+    };
     $('wizTitle').textContent = t(titles[mode][0]);
     $('wizSubtitle').textContent = t(titles[mode][1]);
     $('wizSaveBtn').textContent = t(mode === 'edit' ? 'saveChanges' : 'createVault');

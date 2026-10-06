@@ -78,11 +78,7 @@ function publicVault(v) {
 
 function touchIdAvailable() {
   try {
-    return (
-      process.platform === 'darwin' &&
-      systemPreferences.canPromptTouchID() &&
-      safeStorage.isEncryptionAvailable()
-    );
+    return process.platform === 'darwin' && systemPreferences.canPromptTouchID() && safeStorage.isEncryptionAvailable();
   } catch {
     return false;
   }
