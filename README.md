@@ -52,9 +52,6 @@ npm run dist:win     # .exe         (build on Windows)
 npm run dist:linux   # .AppImage + .deb
 ```
 
-Pushing a `v*` tag runs the release workflow, which builds every platform and
-publishes a GitHub Release (used by the auto-updater).
-
 ### Code signing
 
 Unsigned builds trigger Gatekeeper / SmartScreen warnings. Signing and
@@ -64,6 +61,33 @@ notarization happen automatically when these repository secrets exist:
 |--------|---------|
 | `CSC_LINK`, `CSC_KEY_PASSWORD` | Signing certificate (.p12 / .pfx, base64) |
 | `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` | macOS notarization |
+
+## Releasing
+
+Releases are fully automated by `.github/workflows/release.yml`:
+
+1. Bump `version` in `package.json` (e.g. `npm version minor --no-git-tag-version`).
+2. Add a section for it to [CHANGELOG.md](CHANGELOG.md):
+
+   ```markdown
+   ## [1.2.0] - 2026-11-01
+
+   ### Added
+   - Something new
+   ```
+
+3. Merge to `main`. The workflow then:
+   - reads the version and its changelog section (and fails if it is missing),
+   - creates the `v1.2.0` tag and a draft GitHub Release whose description is
+     that changelog section,
+   - builds and uploads the macOS, Windows and Linux installers,
+   - publishes the release, which the in-app auto-updater then picks up.
+
+You can preview the notes locally with `npm run changelog` (or
+`npm run changelog -- 1.0.0` for another version). The release can also be
+started manually from the Actions tab (*Release → Run workflow*); a version
+that is already published is skipped, and a draft left by a failed run is
+rebuilt.
 
 ## How it works
 
@@ -76,6 +100,7 @@ notarization happen automatically when these repository secrets exist:
 | `lib/validate.js` | Input validation for every IPC payload |
 | `preload.js` | Minimal `vaultAPI` bridge |
 | `index.html`, `assets/` | UI (strict CSP, no inline scripts) |
+| `scripts/changelog.js` | Extracts a version's notes from CHANGELOG.md for releases |
 
 The config (`vault-config.json`) lives in the per-user data directory with
 `0600` permissions. **It is git-ignored and never shipped inside the app.**
@@ -93,7 +118,14 @@ The config (`vault-config.json`) lives in the per-user data directory with
 - This protects stored credentials at rest. It is not a substitute for
   full-disk encryption or proper server-side access controls.
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for the history of every release.
+
 ## License
 
-Licensed under the **GNU General Public License v3.0 or later**.
-See [LICENSE](LICENSE) for the full text.
+Copyright © 2026 Kostas Melitzanis.
+
+Vaultwick is free software, licensed under the **GNU General Public License
+v3.0 or later**. See [LICENSE](LICENSE) for the full text. Bundled third-party
+components and their licenses are listed in [THIRD-PARTY.md](THIRD-PARTY.md).
