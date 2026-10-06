@@ -1,67 +1,96 @@
 # 🔒 Vaultwick
 
-A small, cross-platform desktop app that mounts a password-protected network
-drive (SMB/CIFS) — from a NAS, a PC, or any SMB server — and exposes it as a
-real mounted volume. Your server password is encrypted at rest with a master
-password you choose, so it's never stored in plain text.
+A small, cross-platform desktop app that mounts password-protected network
+drives (SMB/CIFS) — from a NAS, a PC, or any SMB server — as real mounted
+volumes. Server passwords are encrypted at rest with a master password you
+choose, so they are never stored in plain text.
 
 Built with [Electron](https://www.electronjs.org/).
 
 ## Features
 
-- **One master password** unlocks the app and mounts your drive.
-- **Encrypted credentials** — the server password is sealed with AES-256-GCM
-  using a key derived (scrypt) from your master password. Wrong password →
-  decryption simply fails.
-- **Real mounted volume** — on macOS the share appears under `/Volumes` (shown
-  on the Desktop and in Finder's sidebar); on Windows it maps to a drive letter.
-- **First-run setup wizard** — no config files to hand-edit.
-- **Settings** — change your master password, re-run setup, and pick from
-  several gradient themes.
-- **No admin rights required** for mounting.
+- **Multiple vaults** — each share has its own name and master password.
+- **Encrypted credentials** — AES-256-GCM with a key derived by scrypt
+  (N=2¹⁷). Older configs are upgraded transparently on the next unlock.
+- **Real mounted volumes** — `/Volumes` on macOS, a drive letter on Windows,
+  GVfs (`gio mount`) on Linux.
+- **Auto-lock** after a chosen idle time, on sleep and on screen lock; the app
+  also notices when the share is ejected from outside.
+- **Touch ID** unlock on macOS (via the system keychain).
+- **Tray / menu-bar icon** with Open Folder and Lock, optional launch at login.
+- **Test connection** button in the setup wizard.
+- **Password strength meter**, minimum master-password length and an
+  increasing delay after repeated wrong passwords.
+- **English and Greek** UI, five colour themes.
+- **Automatic updates** from GitHub Releases.
 
-## Install / Run from source
+## Run from source
 
 ```bash
-git clone https://github.com/<your-username>/vaultwick.git
+git clone https://github.com/kmelitzanis/vaultwick.git
 cd vaultwick
 npm install
 npm start
 ```
 
-On first launch the setup wizard collects your server address, shared folder,
-username, server password, and a master password.
+## Development
+
+```bash
+npm test             # unit tests (node:test)
+npm run lint         # ESLint
+npm run format       # Prettier
+```
+
+CI runs lint, format check, tests and builds for all three platforms on every
+pull request.
 
 ## Build installers
 
 ```bash
-npm run dist:mac    # .dmg  (must be built on macOS)
-npm run dist:win    # .exe  (build on Windows, or via Wine on macOS)
-npm run dist:all    # both
+npm run dist:mac     # .dmg + .zip  (build on macOS)
+npm run dist:win     # .exe         (build on Windows)
+npm run dist:linux   # .AppImage + .deb
 ```
 
-Output is written to `dist/`.
+Pushing a `v*` tag runs the release workflow, which builds every platform and
+publishes a GitHub Release (used by the auto-updater).
 
-> **Note:** Unsigned builds trigger Gatekeeper (macOS) / SmartScreen (Windows)
-> warnings. Code signing requires an Apple Developer / Windows certificate.
+### Code signing
+
+Unsigned builds trigger Gatekeeper / SmartScreen warnings. Signing and
+notarization happen automatically when these repository secrets exist:
+
+| Secret | Purpose |
+|--------|---------|
+| `CSC_LINK`, `CSC_KEY_PASSWORD` | Signing certificate (.p12 / .pfx, base64) |
+| `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` | macOS notarization |
 
 ## How it works
 
 | File | Role |
 |------|------|
-| `main.js` | Electron main process: config, crypto, mounting (`mount_smbfs` / `net use`), IPC |
-| `preload.js` | Secure bridge exposing a minimal `vaultAPI` to the renderer |
-| `index.html` + `assets/css/app.css` | The UI (wizard, lock, unlocked, settings) |
-| `setup.js` | Optional legacy CLI setup (the app has a built-in wizard) |
+| `main.js` | Main process: window, tray, auto-lock, IPC (sender-checked) |
+| `lib/crypto.js` | scrypt + AES-256-GCM encryption |
+| `lib/config.js` | Config schema, migration, atomic owner-only writes |
+| `lib/mount.js` | Per-platform mounting; secrets go via stdin, never argv |
+| `lib/validate.js` | Input validation for every IPC payload |
+| `preload.js` | Minimal `vaultAPI` bridge |
+| `index.html`, `assets/` | UI (strict CSP, no inline scripts) |
 
-The encrypted config (`vault-config.json`) is written to the app's per-user
-data directory. **It is git-ignored and never shipped inside the app.**
+The config (`vault-config.json`) lives in the per-user data directory with
+`0600` permissions. **It is git-ignored and never shipped inside the app.**
 
 ## Security notes
 
-- The master password is never stored — only a random salt, IV, GCM tag, and
-  ciphertext are saved. The key is re-derived on each unlock.
-- This protects the stored credential at rest. It is not a substitute for
+- Master passwords are never stored — only salt, IV, GCM tag, ciphertext and
+  KDF parameters.
+- Server passwords are passed to the OS mount tools through stdin, so they do
+  not appear in the process list.
+- The renderer is sandboxed with context isolation, a strict CSP, blocked
+  navigation/new windows and denied permission requests. Packaged builds
+  disable `runAsNode`, `NODE_OPTIONS` and inspector flags via Electron fuses
+  and validate ASAR integrity.
+- This protects stored credentials at rest. It is not a substitute for
   full-disk encryption or proper server-side access controls.
 
 ## License
