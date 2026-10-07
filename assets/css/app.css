@@ -101,13 +101,13 @@ body::after {
   display: none !important;
 }
 
-/* Padlock badge */
-.lock {
+/* Network-drive logo badge */
+.logo {
   position: relative;
   width: 92px;
   height: 92px;
   margin: 0 auto 20px;
-  padding: 16px;
+  padding: 9px;
   display: grid;
   place-items: center;
   border-radius: 28px;
@@ -117,19 +117,38 @@ body::after {
     0 14px 34px rgba(0, 0, 0, 0.16),
     inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
-.lock svg {
+.logo svg {
   width: 100%;
   height: 100%;
   filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.12));
 }
-.lock .shackle {
-  transition: transform 0.45s var(--ease);
-  transform-origin: 60px 40px;
+/* Drive LEDs: dim while locked, lit and blinking once the share is mounted */
+.logo .led {
+  fill: var(--g-bottom);
+  transition: fill 0.3s;
 }
-.app.success .lock .shackle {
-  transform: rotate(16deg) translateX(6px);
+.app.success .logo .led,
+#unlocked .logo .led {
+  fill: #6dffb0;
+  filter: drop-shadow(0 0 3px #6dffb0);
 }
-.app.success .lock {
+#unlocked .logo .led {
+  animation: blink 2.4s steps(1) infinite;
+}
+#unlocked .logo .led + .led {
+  animation-delay: 0.9s;
+}
+@keyframes blink {
+  0%,
+  80% {
+    opacity: 1;
+  }
+  85%,
+  95% {
+    opacity: 0.35;
+  }
+}
+.app.success .logo {
   animation: pop 0.45s var(--ease);
 }
 @keyframes pop {

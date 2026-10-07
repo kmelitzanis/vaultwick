@@ -17,15 +17,23 @@
   <rect x="112" y="112" width="800" height="800" rx="180" fill="url(#bg)"/>
   <rect x="112" y="112" width="800" height="800" rx="180" fill="url(#sheen)"/>
 
-  <!-- Padlock -->
-  <g filter="url(#shadow)">
-    <!-- shackle -->
-    <path d="M392 470 V392 a120 120 0 0 1 240 0 v78"
-          fill="none" stroke="#ffffff" stroke-width="64" stroke-linecap="round"/>
-    <!-- body -->
-    <rect x="332" y="452" width="360" height="300" rx="64" fill="#ffffff"/>
-    <!-- keyhole -->
-    <circle cx="512" cy="578" r="40" fill="#16a875"/>
-    <rect x="492" y="600" width="40" height="96" rx="20" fill="#16a875"/>
+  <!-- Network drive on a LAN (same glyph as the in-app logo, 120-unit grid) -->
+  <g filter="url(#shadow)" transform="translate(192 176) scale(5.3333)">
+    <!-- drive enclosure with two bays -->
+    <rect x="22" y="20" width="76" height="42" rx="10" fill="#ffffff"/>
+    <rect x="32" y="30" width="38" height="6" rx="3" fill="#16a875" opacity="0.35"/>
+    <rect x="32" y="46" width="38" height="6" rx="3" fill="#16a875" opacity="0.35"/>
+    <!-- network links -->
+    <path d="M60 62v14M32 86v-8a2 2 0 0 1 2-2h52a2 2 0 0 1 2 2v8"
+          fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="60" cy="76" r="5" fill="#ffffff"/>
+    <!-- client computers -->
+    <rect x="18" y="86" width="28" height="18" rx="5" fill="#ffffff"/>
+    <rect x="74" y="86" width="28" height="18" rx="5" fill="#ffffff"/>
+  </g>
+  <!-- activity LEDs -->
+  <g transform="translate(192 176) scale(5.3333)">
+    <circle cx="84" cy="33" r="4" fill="#22c47a"/>
+    <circle cx="84" cy="49" r="4" fill="#22c47a"/>
   </g>
 </svg>

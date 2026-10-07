@@ -14,6 +14,11 @@ whose description is exactly that section.
 
 ## [Unreleased]
 
+### Changed
+
+- New network-drive logo for the app icon and inside the app, replacing the
+  padlock. Its activity LEDs light up while a vault is mounted.
+
 ## [1.1.1] - 2026-10-06
 
 ### Added
