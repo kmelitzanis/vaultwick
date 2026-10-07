@@ -21,6 +21,7 @@ whose description is exactly that section.
 - New logo for the app icon and inside the app: a vault door whose dial is a
   network hub. Inside the app the dial turns open while a vault is mounted.
 - Darker, more muted colour themes (emerald, ocean, wine, violet, midnight).
+- README shows the logo, status badges and a download guide per platform.
 
 ## [1.1.1] - 2026-10-06
 
