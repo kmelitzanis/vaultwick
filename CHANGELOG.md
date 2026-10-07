@@ -14,6 +14,14 @@ whose description is exactly that section.
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-10-07
+
+### Fixed
+
+- Windows: mounting failed with "powershell.exe exited with 1". The mount script
+  now runs as a single block, non-ASCII passwords are read correctly, and
+  PowerShell's actual error message is shown.
+
 ## [1.2.1] - 2026-10-07
 
 ### Fixed
@@ -104,7 +112,8 @@ whose description is exactly that section.
 - Server password encrypted at rest with AES-256-GCM and scrypt.
 - First-run setup wizard, master password change and five colour themes.
 
-[Unreleased]: https://github.com/kmelitzanis/vaultwick/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/kmelitzanis/vaultwick/compare/v1.2.2...HEAD
+[1.2.2]: https://github.com/kmelitzanis/vaultwick/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/kmelitzanis/vaultwick/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/kmelitzanis/vaultwick/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/kmelitzanis/vaultwick/compare/v1.1.0...v1.1.1
