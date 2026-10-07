@@ -14,6 +14,14 @@ whose description is exactly that section.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-07
+
+### Fixed
+
+- macOS: the app quit immediately on launch. Builds without a Developer ID
+  certificate are now ad-hoc signed, which Apple Silicon requires. CI now checks
+  that the macOS app is signed and starts.
+
 ## [1.2.0] - 2026-10-07
 
 ### Changed
@@ -96,7 +104,8 @@ whose description is exactly that section.
 - Server password encrypted at rest with AES-256-GCM and scrypt.
 - First-run setup wizard, master password change and five colour themes.
 
-[Unreleased]: https://github.com/kmelitzanis/vaultwick/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/kmelitzanis/vaultwick/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/kmelitzanis/vaultwick/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/kmelitzanis/vaultwick/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/kmelitzanis/vaultwick/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/kmelitzanis/vaultwick/compare/v1.0.0...v1.1.0

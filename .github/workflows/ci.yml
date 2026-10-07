@@ -36,9 +36,32 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx electron-builder --publish never
+      - name: Build installers
+        shell: bash
+        run: |
+          # Unsigned macOS builds must still be ad-hoc signed: Electron fuses
+          # modify the binary, and Apple Silicon refuses to run unsigned code.
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            npx electron-builder --publish never -c.mac.identity=- -c.mac.hardenedRuntime=false
+          else
+            npx electron-builder --publish never
+          fi
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
+      - name: Check the macOS app is signed and starts
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          APP="dist/mac-arm64/Vaultwick.app"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          "$APP/Contents/MacOS/Vaultwick" &
+          PID=$!
+          sleep 15
+          if ! kill -0 "$PID" 2>/dev/null; then
+            echo "::error::Vaultwick exited during startup"
+            exit 1
+          fi
+          kill "$PID"
       - uses: actions/upload-artifact@v5
         with:
           name: vaultwick-${{ matrix.os }}
