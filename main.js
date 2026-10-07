@@ -179,7 +179,7 @@ function createWindow() {
     maximizable: false,
     fullscreenable: false,
     show: false,
-    backgroundColor: '#27c592',
+    backgroundColor: '#0e5c49',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     icon: path.join(__dirname, 'assets', 'icon.png'),
     webPreferences: {

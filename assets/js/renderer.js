@@ -45,11 +45,11 @@
 
   // ---------- Themes ----------
   const THEMES = {
-    emerald: { top: '#2fd6a8', bottom: '#1fb47a' },
-    ocean: { top: '#4f9bff', bottom: '#5b5bf0' },
-    sunset: { top: '#ff9a6b', bottom: '#f43f7c' },
-    violet: { top: '#a06bf0', bottom: '#7a3df0' },
-    midnight: { top: '#3a5068', bottom: '#1b2735' },
+    emerald: { top: '#13795f', bottom: '#0a3f33' },
+    ocean: { top: '#24548f', bottom: '#122a4d' },
+    sunset: { top: '#8c3b45', bottom: '#4a1d2a' },
+    violet: { top: '#56399a', bottom: '#2a1b52' },
+    midnight: { top: '#2b3646', bottom: '#11161e' },
   };
 
   function applyTheme(id) {
