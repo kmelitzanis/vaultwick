@@ -110,7 +110,13 @@ jobs:
           if [ "$RUNNER_OS" = "macOS" ]; then
             # Build without uploading, rename the Intel files from "x64" to
             # "amd64" (and fix latest-mac.yml), then upload them ourselves.
-            npx electron-builder --mac --publish never
+            if [ -n "$CSC_LINK" ]; then
+              npx electron-builder --mac --publish never
+            else
+              # No certificate: ad-hoc sign. Electron fuses modify the binary
+              # and Apple Silicon refuses to run unsigned code.
+              npx electron-builder --mac --publish never -c.mac.identity=- -c.mac.hardenedRuntime=false
+            fi
             node scripts/rename-mac-artifacts.js dist
             gh release upload "$TAG" --clobber \
               dist/*.dmg dist/*.zip dist/*.blockmap dist/latest-mac.yml
