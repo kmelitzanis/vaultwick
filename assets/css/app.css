@@ -1,6 +1,6 @@
 :root {
-  --g-top: #2fd6a8;
-  --g-bottom: #1fb47a;
+  --g-top: #13795f;
+  --g-bottom: #0a3f33;
   --ink: #ffffff;
   --ink-soft: rgba(255, 255, 255, 0.85);
   --ink-dim: rgba(255, 255, 255, 0.62);
@@ -101,13 +101,13 @@ body::after {
   display: none !important;
 }
 
-/* Padlock badge */
-.lock {
+/* Vault logo badge */
+.logo {
   position: relative;
   width: 92px;
   height: 92px;
   margin: 0 auto 20px;
-  padding: 16px;
+  padding: 9px;
   display: grid;
   place-items: center;
   border-radius: 28px;
@@ -117,19 +117,21 @@ body::after {
     0 14px 34px rgba(0, 0, 0, 0.16),
     inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
-.lock svg {
+.logo svg {
   width: 100%;
   height: 100%;
   filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.12));
 }
-.lock .shackle {
-  transition: transform 0.45s var(--ease);
-  transform-origin: 60px 40px;
+/* The vault dial turns open on unlock and stays open while the drive is mounted */
+.logo .dial {
+  transform-origin: 60px 60px;
+  transition: transform 0.6s var(--ease);
 }
-.app.success .lock .shackle {
-  transform: rotate(16deg) translateX(6px);
+.app.success .logo .dial,
+#unlocked .logo .dial {
+  transform: rotate(60deg);
 }
-.app.success .lock {
+.app.success .logo {
   animation: pop 0.45s var(--ease);
 }
 @keyframes pop {

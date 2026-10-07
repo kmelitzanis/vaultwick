@@ -14,6 +14,14 @@ whose description is exactly that section.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-07
+
+### Changed
+
+- New logo for the app icon and inside the app: a vault door whose dial is a
+  network hub. Inside the app the dial turns open while a vault is mounted.
+- Darker, more muted colour themes (emerald, ocean, wine, violet, midnight).
+
 ## [1.1.1] - 2026-10-06
 
 ### Added
@@ -87,7 +95,8 @@ whose description is exactly that section.
 - Server password encrypted at rest with AES-256-GCM and scrypt.
 - First-run setup wizard, master password change and five colour themes.
 
-[Unreleased]: https://github.com/kmelitzanis/vaultwick/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/kmelitzanis/vaultwick/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/kmelitzanis/vaultwick/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/kmelitzanis/vaultwick/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/kmelitzanis/vaultwick/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/kmelitzanis/vaultwick/releases/tag/v1.0.0
