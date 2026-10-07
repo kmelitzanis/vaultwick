@@ -148,6 +148,15 @@ body::after {
     opacity: 0.35;
   }
 }
+.logo .shackle {
+  transition: transform 0.45s var(--ease);
+  transform-origin: 65px 75px;
+}
+/* The padlock opens on unlock and stays open while the drive is mounted */
+.app.success .logo .shackle,
+#unlocked .logo .shackle {
+  transform: translateY(-3px) rotate(-30deg);
+}
 .app.success .logo {
   animation: pop 0.45s var(--ease);
 }

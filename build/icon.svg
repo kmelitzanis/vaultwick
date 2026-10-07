@@ -24,9 +24,13 @@
     <rect x="32" y="30" width="38" height="6" rx="3" fill="#16a875" opacity="0.35"/>
     <rect x="32" y="46" width="38" height="6" rx="3" fill="#16a875" opacity="0.35"/>
     <!-- network links -->
-    <path d="M60 62v14M32 86v-8a2 2 0 0 1 2-2h52a2 2 0 0 1 2 2v8"
+    <path d="M60 62v3M32 86v-8a2 2 0 0 1 2-2h52a2 2 0 0 1 2 2v8"
           fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="60" cy="76" r="5" fill="#ffffff"/>
+    <!-- padlock at the junction: the share is protected -->
+    <path d="M55 75v-4.5a5 5 0 0 1 10 0v4.5" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+    <rect x="50.5" y="73.5" width="19" height="16" rx="4" fill="#ffffff"/>
+    <circle cx="60" cy="80" r="2.3" fill="#16a875"/>
+    <rect x="59" y="80.5" width="2" height="5" rx="1" fill="#16a875"/>
     <!-- client computers -->
     <rect x="18" y="86" width="28" height="18" rx="5" fill="#ffffff"/>
     <rect x="74" y="86" width="28" height="18" rx="5" fill="#ffffff"/>
