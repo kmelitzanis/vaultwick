@@ -101,7 +101,7 @@ body::after {
   display: none !important;
 }
 
-/* Network-drive logo badge */
+/* Vault logo badge */
 .logo {
   position: relative;
   width: 92px;
@@ -122,40 +122,14 @@ body::after {
   height: 100%;
   filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.12));
 }
-/* Drive LEDs: dim while locked, lit and blinking once the share is mounted */
-.logo .led {
-  fill: var(--g-bottom);
-  transition: fill 0.3s;
+/* The vault dial turns open on unlock and stays open while the drive is mounted */
+.logo .dial {
+  transform-origin: 60px 60px;
+  transition: transform 0.6s var(--ease);
 }
-.app.success .logo .led,
-#unlocked .logo .led {
-  fill: #6dffb0;
-  filter: drop-shadow(0 0 3px #6dffb0);
-}
-#unlocked .logo .led {
-  animation: blink 2.4s steps(1) infinite;
-}
-#unlocked .logo .led + .led {
-  animation-delay: 0.9s;
-}
-@keyframes blink {
-  0%,
-  80% {
-    opacity: 1;
-  }
-  85%,
-  95% {
-    opacity: 0.35;
-  }
-}
-.logo .shackle {
-  transition: transform 0.45s var(--ease);
-  transform-origin: 64.5px 95px;
-}
-/* The padlock opens on unlock and stays open while the drive is mounted */
-.app.success .logo .shackle,
-#unlocked .logo .shackle {
-  transform: translateY(-2px) rotate(-30deg);
+.app.success .logo .dial,
+#unlocked .logo .dial {
+  transform: rotate(60deg);
 }
 .app.success .logo {
   animation: pop 0.45s var(--ease);

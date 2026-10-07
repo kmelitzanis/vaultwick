@@ -16,9 +16,8 @@ whose description is exactly that section.
 
 ### Changed
 
-- New logo for the app icon and inside the app: a two-bay network drive on a
-  LAN, with a padlock badge on the connection. Inside the app the drive LEDs
-  light up and the padlock opens while a vault is mounted.
+- New logo for the app icon and inside the app: a vault door whose dial is a
+  network hub. Inside the app the dial turns open while a vault is mounted.
 - Darker, more muted colour themes (emerald, ocean, wine, violet, midnight).
 
 ## [1.1.1] - 2026-10-06
